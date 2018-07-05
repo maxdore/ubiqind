@@ -3,8 +3,9 @@ import random
 
 # Read the command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("rounds", type=int, help="number of rounds")
+parser.add_argument("network", help="type of network (circle, complete, wheel or density as a float)")
 parser.add_argument("agents", type=int, help="number of agents")
+parser.add_argument("rounds", type=int, help="number of rounds")
 parser.add_argument("-v", help="Show debugging information", action='store_true')
 args = parser.parse_args()
 
@@ -21,14 +22,29 @@ while cur_round <= args.rounds:
     # Initializing all agents and parameters
     agents = []
     for i in range(args.agents):
-        # density page 15
-        peers = list(range(0,i)) + list(range(i+1,args.agents))
+        if args.network == "complete":
+            peers = list(range(0,i)) + list(range(i+1,args.agents))
+        elif args.network == "circle":
+            peers = [(i-1) % args.agents, (i+1) % args.agents]
+        elif args.network == "wheel":
+            if i == 0: 
+                peers = list(range(1, args.agents))
+            else:
+                peers = [0, ((i-2) % (args.agents-1)) + 1, (i % (args.agents-1)) + 1]
+        else:
+            peers = []
+            for j in range(args.agents):
+                if i != j and float(args.network) > random.random():
+                    peers.append(j)
+
         agents.append({
             'prob_new_better': random.random(),
             'peers': peers,
         })
     if args.v:
-        print("Agents initialized: " + str(agents))
+        print("Agents initialized:")
+        for i in range(args.agents):
+            print(str(i) + ": " + str(agents[i]))
 
     num_gens = 1
     while True:
@@ -66,4 +82,9 @@ print("Pct. Succ / Avg. Rounds")
 print(str(len(sucs)/float(args.rounds)) + " / " + str(sum(sucs) / float(len(sucs))))
 
 print("Pct. Failed / Avg. Rounds")
-print(str(len(fails)/float(args.rounds)) + " / " + str(sum(fails) / float(len(fails))))
+if len(fails) == 0:
+    print("No failed rounds")
+else:
+    print(str(len(fails)/float(args.rounds)) + " / " + str(sum(fails) / float(len(fails))))
+
+
