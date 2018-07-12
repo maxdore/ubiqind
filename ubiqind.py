@@ -11,14 +11,15 @@ parser.add_argument("network", help="type of network (circle, complete, wheel or
 parser.add_argument("agents", type=int, help="number of agents")
 parser.add_argument("rounds", type=int, help="number of rounds")
 parser.add_argument("-v", help="Show debugging information", action='store_true')
+parser.add_argument("-s", help="Hide status information", action='store_true')
 args = parser.parse_args()
 
 
 # Model parameters not given as command line arguments
-args.pulls = 1000
-args.ops = [.499, .5] #.499
+args.pulls = 10000
+args.ops = [.499, .5] 
 args.maxprior = 4
-args.conflevel = .999  #.99999
+args.conflevel = .9999
 
 
 class Agent:
@@ -110,15 +111,13 @@ fails = []
 
 # The main loop
 while cur_round <= args.rounds:
-    print ("Round " + str(cur_round) , end="\r")
-    if args.v:
-        print("Playing round " + str(cur_round))
+    if not args.s:
+        print ("Round " + str(cur_round) , end="\r")
     
     # Initializing all agents and parameters
     agents = []
     for i in range(args.agents):
         agents.append(Agent(i))
-
 
     if args.v:
         for a in agents:
@@ -129,6 +128,7 @@ while cur_round <= args.rounds:
     while True:
         if args.v:
             print("Generation " + str(num_gens))
+
         # An agents pulls the bandit 
         for a in agents:
             ops = args.ops[a.correct_belief()]
@@ -144,12 +144,8 @@ while cur_round <= args.rounds:
             genpulls = [0,0]
             for peerid in a.peers + [a.id]:
                 peer = agents[peerid]
-                # if a.correct_belief() == peer.correct_belief():
                 gensuccs[peer.correct_belief()] = gensuccs[peer.correct_belief()] + peer.succpulls
                 genpulls[peer.correct_belief()] = genpulls[peer.correct_belief()] + args.pulls
-                # else:
-                #     a.a[peer.correct_belief()] =  a.a[peer.correct_belief()] + peer.succpulls
-                #     a.b[peer.correct_belief()] =  a.b[peer.correct_belief()] + args.pulls
           
             a.a = [x+y for x, y in zip(gensuccs, a.a)]
             a.b = [x+y for x, y in zip(genpulls, a.b)]
@@ -197,6 +193,11 @@ failgens = str(sum(fails) / float(len(fails))) if len(fails) > 0 else "/"
 
 if args.v:
     print("Network / Scientists / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail")
-print("         ", end="\r")
-print(args.network + "\t" + str(args.agents) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end="\r")
+
+if not args.s:
+    print("         ", end="\r")
+    end = "\r"
+else :
+    end = "\n"
+print(args.network + "\t" + str(args.agents) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end=end)
 
