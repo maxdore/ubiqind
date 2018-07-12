@@ -2,6 +2,7 @@ import argparse
 import random
 import numpy
 import math 
+import copy
 
 
 # Read the command line arguments
@@ -15,9 +16,9 @@ args = parser.parse_args()
 
 # Model parameters not given as command line arguments
 args.pulls = 1000
-args.ops1 = .4 #.499
-args.ops2 = .5
-args.maxprior = 2 
+args.ops = [.499, .5] #.499
+args.maxprior = 4
+args.conflevel = .999  #.99999
 
 
 class Agent:
@@ -35,20 +36,19 @@ class Agent:
         self.b = [a1+b1, a2+b2]
 
         if args.network == "complete":
-            peers = list(range(0,i)) + list(range(i+1,args.agents))
+            self.peers = list(range(0,i)) + list(range(i+1,args.agents))
         elif args.network == "circle":
-            peers = [(i-1) % args.agents, (i+1) % args.agents]
+            self.peers = [(i-1) % args.agents, (i+1) % args.agents]
         elif args.network == "wheel":
             if i == 0: 
-                peers = list(range(1, args.agents))
+                self.peers = list(range(1, args.agents))
             else:
-                peers = [0, ((i-2) % (args.agents-1)) + 1, (i % (args.agents-1)) + 1]
+                self.peers = [0, ((i-2) % (args.agents-1)) + 1, (i % (args.agents-1)) + 1]
         else:
-            peers = []
+            self.peers = []
             for j in range(args.agents):
                 if i != j and float(args.network) > random.random():
-                    peers.append(j)
-        self.peers = peers
+                    self.peers.append(j)
         if args.v:
             print("Init" + str(self)) 
 
@@ -56,24 +56,61 @@ class Agent:
     def __str__(self):
         return "Agent " + str(self.id) + ": " + str(self.a) + ", " + str(self.b) + ", " + str(self.peers)  
 
-    def get_posterior(self):
+    def get_mean_beta(self):
         return [x/y for x, y in zip(self.a, self.b)]
 
-    def snd_better(self):
-        return True
-        # return probsnd > .5
+    def correct_belief(self):
+        mean = self.get_mean_beta()
+        return mean[0] < mean[1]
 
-    def snd_confident(self):
-        return True
-        # return probsnd > .9999
+    def confident(self):
+        return self.get_confidence() > args.conflevel
+
+    def get_confidence(self):
+        mean = self.get_mean_beta()
+        infBelief = min(mean)
+
+        peers = [agents[p] for p in self.peers]
+        signals = [args.ops[a.correct_belief()] for a in peers] 
+        avgSignal = sum(signals) / float(len(signals))
+
+        if avgSignal <= infBelief:
+            return 0
+
+        alpha = self.a[self.correct_belief()]
+        varepsilon = avgSignal - infBelief
+        delta  = mean[self.correct_belief()] - infBelief
+
+        if args.v:
+            print(str(infBelief) + " " + str(avgSignal) + " " + str(alpha) + " " + str(varepsilon) + " " + str(delta))
+
+        if (2 * alpha - 1) * delta <= infBelief:
+            return 0
+
+        exitProb = 0.5 + 0.5 * self.erf (
+          ((0 - 2 * alpha + 1) * delta + infBelief)
+          / (math.sqrt((0 - 2 * alpha * delta + delta + infBelief)
+          * (infBelief + varepsilon) * (0 - 1 + infBelief + varepsilon)
+          / (varepsilon * (infBelief + delta)))
+          * (infBelief + delta)))
+        return 1 - exitProb
+
+    def erf(self, x):
+        t = (1 - .5 * x)
+        return math.exp( 0 - x ** 2 - 1.26551223 + 1.00002368 / t 
+            + .37409196 / t ** 2 + 0.09678418 / t ** 3 
+            - .18628806 / t ** 4 + .27886807 / t ** 5 
+            - 1.13520398 / t ** 6 + 1.48851587 / t ** 7 
+            - .82215223 / t ** 8 + .17087277 / t ** 9) / t - 1
 
 
 cur_round = 1
-sucs = []
+succs = []
 fails = []
 
 # The main loop
 while cur_round <= args.rounds:
+    print ("Round " + str(cur_round) , end="\r")
     if args.v:
         print("Playing round " + str(cur_round))
     
@@ -82,52 +119,84 @@ while cur_round <= args.rounds:
     for i in range(args.agents):
         agents.append(Agent(i))
 
+
+    if args.v:
+        for a in agents:
+            if a.get_confidence() < .5:
+                print("Agent " + str(a.id) + " believes in correct theory with: " + str(a.get_confidence()))
+
     num_gens = 1
     while True:
+        if args.v:
+            print("Generation " + str(num_gens))
+        # An agents pulls the bandit 
         for a in agents:
-            ops = args.ops1 if not a.snd_better() else args.ops2
-            sucpulls = round(numpy.random.normal(args.pulls*ops, math.sqrt(args.pulls*ops*(1-ops))))
+            ops = args.ops[a.correct_belief()]
+            a.succpulls = round(numpy.random.normal(args.pulls*ops, math.sqrt(args.pulls*ops*(1-ops))))
+
             if args.v:
-                print("Agent " + str(a.id) + " pulled: " + str(sucpulls))
+                print("Agent " + str(a.id) + " pulled for theory " + str(int(a.correct_belief())) + " : " + str(a.succpulls))
 
-            # For Testing:
+        # All agents share their successes
+        newagents = copy.deepcopy(agents)
+        for a in newagents: 
+            gensuccs = [0,0]
+            genpulls = [0,0]
+            for peerid in a.peers + [a.id]:
+                peer = agents[peerid]
+                # if a.correct_belief() == peer.correct_belief():
+                gensuccs[peer.correct_belief()] = gensuccs[peer.correct_belief()] + peer.succpulls
+                genpulls[peer.correct_belief()] = genpulls[peer.correct_belief()] + args.pulls
+                # else:
+                #     a.a[peer.correct_belief()] =  a.a[peer.correct_belief()] + peer.succpulls
+                #     a.b[peer.correct_belief()] =  a.b[peer.correct_belief()] + args.pulls
+          
+            a.a = [x+y for x, y in zip(gensuccs, a.a)]
+            a.b = [x+y for x, y in zip(genpulls, a.b)]
             
-            # a['prob_new_better'] = a['prob_new_better'] + random.random()/10
-            # update belief according to result of resp. experiment 
-            # receive payoff
-            # cf Bala Goyal p. 10
+            if args.v: 
+                print("Updated " + str(a))
 
-        # agents meet and discuss results
+        agents = newagents
 
-        if all(not a.snd_better() for a in agents):
+        if args.v:
+            for a in agents:
+                if a.get_confidence() < .5:
+                    print("Agent " + str(a.id) + " believes in correct theory with: " + str(a.get_confidence()))
+        
+        if all(not a.correct_belief() for a in agents):
             if args.v:
                 print("All agents believe inferior method is better after generation " + str(num_gens))
             fails.append(num_gens)
             break
 
-        if all(a.snd_confident() for a in agents):
+        if all(a.correct_belief() for a in agents) and all(a.confident() for a in agents):
             if args.v:
                 print("All agents are confident superior method is better after generation " + str(num_gens))
-            sucs.append(num_gens)
+            succs.append(num_gens)
             break
 
         num_gens = num_gens + 1
+        if num_gens == 10000:
+            # print("Round terminated")
+            # print(agents)
+            break
 
     cur_round = cur_round + 1
 
 if args.v:
     print("Successful rounds:")
-    print(sucs)
+    print(succs)
     print("Failed rounds:")
     print(fails)
 
-print("Pct. Succ / Avg. Rounds")
-print(str(len(sucs)/float(args.rounds)) + " / " + str(sum(sucs) / float(len(sucs))))
+pctsucc = str(len(succs)/float(args.rounds)) 
+succgens = str(sum(succs) / float(len(succs))) if len(succs) > 0 else "/"
+pctfail = str(len(fails)/float(args.rounds)) 
+failgens = str(sum(fails) / float(len(fails))) if len(fails) > 0 else "/"
 
-print("Pct. Failed / Avg. Rounds")
-if len(fails) == 0:
-    print("No failed rounds")
-else:
-    print(str(len(fails)/float(args.rounds)) + " / " + str(sum(fails) / float(len(fails))))
-
+if args.v:
+    print("Network / Scientists / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail")
+print("         ", end="\r")
+print(args.network + "\t" + str(args.agents) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end="\r")
 
