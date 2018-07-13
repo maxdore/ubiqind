@@ -73,7 +73,10 @@ class Agent:
 
         peers = [agents[p] for p in self.peers]
         signals = [args.ops[a.correct_belief()] for a in peers] 
-        avgSignal = sum(signals) / float(len(signals))
+        if len(signals) > 0:
+            avgSignal = sum(signals) / float(len(signals))
+        else:
+            avgSignal = (args.ops[0] + args.ops[1]) / 2
 
         if avgSignal <= infBelief:
             return 0
@@ -200,4 +203,5 @@ if not args.s:
 else :
     end = "\n"
 print(args.network + "\t" + str(args.agents) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end=end)
-
+if not args.s:
+    print("")
