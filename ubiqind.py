@@ -20,7 +20,8 @@ args.pulls = 10000
 args.ops = [.499, .5] 
 args.maxprior = 4
 args.conflevel = .9999
-
+args.bias = False
+args.bias_level = .1
 
 class Agent:
     """
@@ -60,7 +61,7 @@ class Agent:
     def get_mean_beta(self):
         return [x/y for x, y in zip(self.a, self.b)]
 
-    def correct_belief(self):
+    def belief(self):
         mean = self.get_mean_beta()
         return mean[0] < mean[1]
 
@@ -72,7 +73,7 @@ class Agent:
         infBelief = min(mean)
 
         peers = [agents[p] for p in self.peers]
-        signals = [args.ops[a.correct_belief()] for a in peers] 
+        signals = [args.ops[a.belief()] for a in peers] 
         if len(signals) > 0:
             avgSignal = sum(signals) / float(len(signals))
         else:
@@ -81,9 +82,9 @@ class Agent:
         if avgSignal <= infBelief:
             return 0
 
-        alpha = self.a[self.correct_belief()]
+        alpha = self.a[self.belief()]
         varepsilon = avgSignal - infBelief
-        delta  = mean[self.correct_belief()] - infBelief
+        delta  = mean[self.belief()] - infBelief
 
         if args.v:
             print(str(infBelief) + " " + str(avgSignal) + " " + str(alpha) + " " + str(varepsilon) + " " + str(delta))
@@ -107,6 +108,8 @@ class Agent:
             - 1.13520398 / t ** 6 + 1.48851587 / t ** 7 
             - .82215223 / t ** 8 + .17087277 / t ** 9) / t - 1
 
+    def is_biased(self):
+        return random.random() < args.bias_level
 
 cur_round = 1
 succs = []
@@ -134,11 +137,11 @@ while cur_round <= args.rounds:
 
         # An agents pulls the bandit 
         for a in agents:
-            ops = args.ops[a.correct_belief()]
+            ops = args.ops[a.belief()]
             a.succpulls = round(numpy.random.normal(args.pulls*ops, math.sqrt(args.pulls*ops*(1-ops))))
 
             if args.v:
-                print("Agent " + str(a.id) + " pulled for theory " + str(int(a.correct_belief())) + " : " + str(a.succpulls))
+                print("Agent " + str(a.id) + " pulled for theory " + str(int(a.belief())) + " : " + str(a.succpulls))
 
         # All agents share their successes
         newagents = copy.deepcopy(agents)
@@ -147,8 +150,11 @@ while cur_round <= args.rounds:
             genpulls = [0,0]
             for peerid in a.peers + [a.id]:
                 peer = agents[peerid]
-                gensuccs[peer.correct_belief()] = gensuccs[peer.correct_belief()] + peer.succpulls
-                genpulls[peer.correct_belief()] = genpulls[peer.correct_belief()] + args.pulls
+                if not a.belief() and a.belief() != peer.belief() and a.is_biased() and args.bias:
+                    pass
+                else:
+                    gensuccs[peer.belief()] = gensuccs[peer.belief()] + peer.succpulls
+                    genpulls[peer.belief()] = genpulls[peer.belief()] + args.pulls
           
             a.a = [x+y for x, y in zip(gensuccs, a.a)]
             a.b = [x+y for x, y in zip(genpulls, a.b)]
@@ -163,13 +169,13 @@ while cur_round <= args.rounds:
                 if a.get_confidence() < .5:
                     print("Agent " + str(a.id) + " believes in correct theory with: " + str(a.get_confidence()))
         
-        if all(not a.correct_belief() for a in agents):
+        if all(not a.belief() for a in agents):
             if args.v:
                 print("All agents believe inferior method is better after generation " + str(num_gens))
             fails.append(num_gens)
             break
 
-        if all(a.correct_belief() for a in agents) and all(a.confident() for a in agents):
+        if all(a.belief() for a in agents) and all(a.confident() for a in agents):
             if args.v:
                 print("All agents are confident superior method is better after generation " + str(num_gens))
             succs.append(num_gens)
