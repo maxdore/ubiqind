@@ -22,6 +22,7 @@ args.maxprior = 4
 args.conflevel = .9999
 
 
+
 class Agent:
     """
     The agent class with helpers for initializing
@@ -31,7 +32,7 @@ class Agent:
         self.id = id
         self.a = []
         self.b = []
-        for i in range(len(args.ops)):
+        for _ in range(len(args.ops)):
             a = args.maxprior - random.uniform(0, args.maxprior)
             b = args.maxprior - random.uniform(0, args.maxprior)
             self.a.append(a)
