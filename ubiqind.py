@@ -4,12 +4,15 @@ import numpy
 import math
 import copy
 
+# Hack necessary since shell script does not correctly give range of ops
+sys.argv = sys.argv[:4] + sys.argv[4].split(" ") + sys.argv[5:]
 
 # Read the command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("network", help="type of network (circle, complete, wheel or density as a float)")
 parser.add_argument("agents", type=int, help="number of agents")
 parser.add_argument("rounds", type=int, help="number of rounds")
+parser.add_argument("ops", nargs='+', type=float, help="ops of theories")
 parser.add_argument("-v", help="Show debugging information", action='store_true')
 parser.add_argument("-s", help="Hide status information", action='store_true')
 args = parser.parse_args()
@@ -17,10 +20,8 @@ args = parser.parse_args()
 
 # Model parameters not given as command line arguments
 args.pulls = 10000
-args.ops = [.499, .5] # .499, .499, .5] 
 args.maxprior = 4
 args.conflevel = .9999
-
 
 
 class Agent:
@@ -193,13 +194,13 @@ pctfail = str(len(fails)/float(args.rounds))
 failgens = str(sum(fails) / float(len(fails))) if len(fails) > 0 else "/"
 
 if args.v:
-    print("Network / Scientists / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail")
+    print("Network / Scientists / Rounds / OPS / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail")
 
 if not args.s:
     print("         ", end="\r")
     end = "\r"
 else :
     end = "\n"
-print(args.network + "\t" + str(args.agents) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end=end)
+print(args.network + "\t" + str(args.agents) + "\t" + str(args.rounds) + "\t" + str(args.ops) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end=end)
 if not args.s:
     print("")
