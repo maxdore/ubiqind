@@ -3,6 +3,8 @@ import random
 import numpy
 import math
 import copy
+import sys
+
 
 # Hack necessary since shell script does not correctly give range of ops
 sys.argv = sys.argv[:4] + sys.argv[4].split(" ") + sys.argv[5:]
@@ -22,7 +24,7 @@ args = parser.parse_args()
 args.pulls = 10000
 args.maxprior = 4
 args.conflevel = .9999
-
+args.ownFactor = 2
 
 class Agent:
     """
@@ -143,7 +145,11 @@ while cur_round <= args.rounds:
         for a in newagents: 
             gensuccs = [0 for o in args.ops]
             genpulls = [0 for o in args.ops]
-            for peerid in a.peers + [a.id]:
+
+            gensuccs[a.belief()] = gensuccs[a.belief()] + a.succpulls * args.ownFactor
+            genpulls[a.belief()] = genpulls[a.belief()] + args.pulls * args.ownFactor
+
+            for peerid in a.peers:
                 peer = agents[peerid]
                 gensuccs[peer.belief()] = gensuccs[peer.belief()] + peer.succpulls
                 genpulls[peer.belief()] = genpulls[peer.belief()] + args.pulls
