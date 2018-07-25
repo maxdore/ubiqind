@@ -24,7 +24,8 @@ args = parser.parse_args()
 args.pulls = 10000
 args.maxprior = 4
 args.conflevel = .9999
-args.ownFactor = 2
+args.edgeweights = False
+
 
 class Agent:
     """
@@ -42,19 +43,25 @@ class Agent:
             self.b.append(a+b)
 
         if args.network == "complete":
-            self.peers = list(range(0,i)) + list(range(i+1,args.agents))
+            peers = list(range(0,i)) + list(range(i+1,args.agents))
         elif args.network == "circle":
-            self.peers = [(i-1) % args.agents, (i+1) % args.agents]
+            peers = [(i-1) % args.agents, (i+1) % args.agents]
         elif args.network == "wheel":
             if i == 0:
-                self.peers = list(range(1, args.agents))
+                peers = list(range(1, args.agents))
             else:
-                self.peers = [0, ((i-2) % (args.agents-1)) + 1, (i % (args.agents-1)) + 1]
+                peers = [0, ((i-2) % (args.agents-1)) + 1, (i % (args.agents-1)) + 1]
         else:
-            self.peers = []
+            peers = []
             for j in range(args.agents):
                 if i != j and float(args.network) > random.random():
-                    self.peers.append(j)
+                    peers.append(j)
+
+        if args.edgeweights:
+            self.peers = [(p, random.uniform(0,1)) for p in peers]
+        else:
+            self.peers = [(p, 1) for p in peers]
+
         if args.v:
             print("Init" + str(self))
 
@@ -75,7 +82,7 @@ class Agent:
         mean = self.get_mean_beta()
         infBelief = min(mean)
 
-        peers = [agents[p] for p in self.peers]
+        peers = [agents[p[0]] for p in self.peers]
         if len(peers) > 0:
             signals = [args.ops[a.belief()] for a in peers]
             avgSignal = sum(signals) / float(len(signals))
@@ -146,13 +153,13 @@ while cur_round <= args.rounds:
             gensuccs = [0 for o in args.ops]
             genpulls = [0 for o in args.ops]
 
-            gensuccs[a.belief()] = gensuccs[a.belief()] + a.succpulls * args.ownFactor
-            genpulls[a.belief()] = genpulls[a.belief()] + args.pulls * args.ownFactor
+            gensuccs[a.belief()] = gensuccs[a.belief()] + a.succpulls
+            genpulls[a.belief()] = genpulls[a.belief()] + args.pulls
 
-            for peerid in a.peers:
-                peer = agents[peerid]
-                gensuccs[peer.belief()] = gensuccs[peer.belief()] + peer.succpulls
-                genpulls[peer.belief()] = genpulls[peer.belief()] + args.pulls
+            for p in a.peers:
+                peer = agents[p[0]]
+                gensuccs[peer.belief()] = gensuccs[peer.belief()] + peer.succpulls * p[1]
+                genpulls[peer.belief()] = genpulls[peer.belief()] + args.pulls * p[1]
 
             a.a = [x+y for x, y in zip(gensuccs, a.a)]
             a.b = [x+y for x, y in zip(genpulls, a.b)]
