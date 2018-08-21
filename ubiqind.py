@@ -207,13 +207,13 @@ pctfail = str(len(fails)/float(args.rounds))
 failgens = str(sum(fails) / float(len(fails))) if len(fails) > 0 else "/"
 
 if args.v:
-    print("Network / Scientists / Rounds / OPS / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail")
+    print("Network / Scientists / Rounds / OPS / Pct. Succ / Avg. gens to succ / Pct. Failed / Avg. gens to fail / Number theories")
 
 if not args.s:
     print("         ", end="\r")
     end = "\r"
 else :
     end = "\n"
-print(args.network + "\t" + str(args.agents) + "\t" + str(args.rounds) + "\t" + str(args.ops) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens, end=end)
+print(args.network + "\t" + str(args.agents) + "\t" + str(args.rounds) + "\t" + str(args.ops) + "\t" + pctsucc + "\t" + succgens  + "\t" + pctfail + "\t" + failgens + "\t" + str(len(args.ops)), end=end)
 if not args.s:
     print("")

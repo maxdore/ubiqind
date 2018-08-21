@@ -1,6 +1,8 @@
 #!/bin/bash
 # usage: ./range.sh complete-wheel-circle .499,.5-.499,.499,.5 3 12 1000 data/output.txt
 
+echo "# $@" >> $6
+
 export IFS="-"
 for network in $1; do
     for ops in $2; do
